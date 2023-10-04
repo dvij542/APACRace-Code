@@ -1,0 +1,13 @@
+*.pickle
+proj*.zip
+proj*
+*.npz
+*.gif
+*__pycache__*
+engine-ws*
+*.ipynb
+*RUN_ONLINE*
+*.egg-info*
+*.png
+bayesrace/
+carla-simulator/
