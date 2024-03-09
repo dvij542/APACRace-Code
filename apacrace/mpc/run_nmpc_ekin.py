@@ -1,4 +1,4 @@
-"""	Nonlinear MPC using Kinematic6 and GPs for model correction.
+"""	Nonlinear MPC using extended kinematic model
 """
 
 __author__ = 'Achin Jain'

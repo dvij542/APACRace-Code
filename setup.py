@@ -1,10 +1,10 @@
 from setuptools import setup
 
 setup(
-	name='bayes_race',
+	name='apacrace',
 	version='1.0',
-	author='Achin Jain',
-	author_email='achinjseas.upenn.edu',
+	author='Dvij Kalaria',
+	author_email='dkalaria@andrew.cmu.edu',
 	install_requires=[
 		'pandas==1.0.3',
 		'cvxpy==1.0.15',

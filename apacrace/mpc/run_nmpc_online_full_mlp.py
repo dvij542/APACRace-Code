@@ -1,118 +1,36 @@
-"""	Nonlinear MPC using Kinematic6 and GPs for model correction.
+"""	Nonlinear MPC using MLP for learning residual dynamics (full)
 """
 
 __author__ = 'Dvij Kalaria'
 __email__ = 'dkalaria@andrew.cmu.edu'
 
+
 import time as tm
 import numpy as np
 import casadi
-# import _pickle as pickle
-import math
+import _pickle as pickle
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 from bayes_race.params import ORCA
 from bayes_race.models import Dynamic, Kinematic6
-from bayes_race.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel, loadTorchModel, loadTorchModelEq, loadTorchModelImplicit
+from bayes_race.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel
 from bayes_race.tracks import ETHZ
 from bayes_race.mpc.planner import ConstantSpeed
-from bayes_race.mpc.gpmpc_torch import setupNLP
+from bayes_race.mpc.gpmpc_mlp import setupNLP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process import GaussianProcessRegressor
-import torch
-import random
 import os
 
 #####################################################################
 # CHANGE THIS
 
-SAVE_RESULTS = True
+SAVE_RESULTS = False
 ERROR_CORR = True
 TRACK_CONS = False
-SAVE_VIDEO = False
-RUN_NO = 5
-ITERS_EACH_STEP = 50
-LOAD_MODEL = True
-ACT_FN = 'relu'
-
-torch.manual_seed(3)
-random.seed(0)
-np.random.seed(0)
-# torch.use_deterministic_algorithms(True)
-
-class DynamicModel(torch.nn.Module):
-	def __init__(self, model, deltat = 0.01):
-		"""
-		In the constructor we instantiate four parameters and assign them as
-		member parameters.
-		"""
-		super().__init__()
-		if ACT_FN == 'relu' :
-			self.act = torch.nn.ReLU()
-		elif ACT_FN =='tanh' :
-			self.act = torch.nn.Tanh()
-		elif ACT_FN =='lrelu' :
-			self.act = torch.nn.LeakyReLU()
-		elif ACT_FN =='sigmoid' :
-			self.act = torch.nn.Sigmoid()
-		
-		self.Rx = torch.nn.Sequential(torch.nn.Linear(1,1).to(torch.float64))
-		
-		self.Ry = torch.nn.Sequential(torch.nn.Linear(1,6).to(torch.float64), \
-					self.act, \
-					torch.nn.Linear(6,1).to(torch.float64))
-		self.Ry[0].weight.data.fill_(1.)
-		# print(self.Ry[0].bias)
-		self.Ry[0].bias.data = torch.arange(-.6,.6,(1.2)/6.).to(torch.float64)
-		# self.Ry[2].weight.data.fill_(1.)
-		# print(self.Ry[0].bias)
-		# print(self.Ry[0].weight)
-		self.Fy = torch.nn.Sequential(torch.nn.Linear(1,6).to(torch.float64), \
-					self.act, \
-					torch.nn.Linear(6,1).to(torch.float64))
-		
-		self.Fy[0].weight.data.fill_(1.)
-		# print(self.Ry[0].bias)
-		self.Fy[0].bias.data = torch.arange(-.6,.6,(1.2)/6.).to(torch.float64)
-		self.deltat = deltat
-		self.model = model
-
-	def forward(self, x, debug=False):
-		"""
-		In the forward function we accept a Tensor of input data and we must return
-		a Tensor of output data. We can use Modules defined in the constructor as
-		well as arbitrary operators on Tensors.
-		"""
-		# print(x.shape)
-		# out = X
-		deltatheta = x[:,1]
-		theta = x[:,2]
-		pwm = x[:,0]
-		out = torch.zeros_like(x[:,3:6])
-		# print(out)
-		for i in range(2) :
-			vx = (x[:,3] + out[:,0]).unsqueeze(1)
-			vy = x[:,4] + out[:,1]
-			w = x[:,5] + out[:,2]
-			alpha_f = (theta - torch.atan2(w*self.model.lf+vy,vx[:,0])).unsqueeze(1)
-			alpha_r = torch.atan2(w*self.model.lr-vy,vx[:,0]).unsqueeze(1)
-			Ffy = self.Fy(alpha_f)[:,0]
-			Fry = self.Ry(alpha_r)[:,0]
-			Frx = self.Rx(vx**2)[:,0]
-			Frx = (self.model.Cm1-self.model.Cm2*vx[:,0])*pwm + Frx
-			
-			if debug :
-				print(Ffy,Fry,Frx)
-			
-			Frx_kin = (self.model.Cm1-self.model.Cm2*vx[:,0])*pwm
-			vx_dot = (Frx-Ffy*torch.sin(theta)+self.model.mass*vy*w)/self.model.mass
-			vy_dot = (Fry+Ffy*torch.cos(theta)-self.model.mass*vx[:,0]*w)/self.model.mass
-			w_dot = (Ffy*self.model.lf*torch.cos(theta)-Fry*self.model.lr)/self.model.Iz
-			out += torch.cat([vx_dot.unsqueeze(dim=1),vy_dot.unsqueeze(dim=1),w_dot.unsqueeze(dim=1)],axis=1)*self.deltat
-		out2 = (out)
-		return out2
+SAVE_VIDEO = True
+RUN_NO = 4
 
 #####################################################################
 # default settings
@@ -142,31 +60,30 @@ model_kin = Kinematic6(**params)
 
 TRACK_NAME = 'ETHZ'
 track = ETHZ(reference='optimal', longer=True)
-SIM_TIME = 36.
+SIM_TIME = 26.
 
 #####################################################################
-# load mlp models
+# load GP models
 
-MODEL_PATH = '../gp/orca/semi_mlp-v1.pickle'
-model_ = DynamicModel(model)
-if LOAD_MODEL :
-	model_.load_state_dict(torch.load(MODEL_PATH))
-
-
-model_Rx = loadTorchModelImplicit('Rx',model_.Rx)
-model_Ry = loadTorchModelImplicit('Ry',model_.Ry)
-model_Fy = loadTorchModelImplicit('Fy',model_.Fy)
-
-models = {
-	'Rx' : model_Rx,
-	'Ry' : model_Ry,
-	'Fy' : model_Fy,
-	'act_fn' : ACT_FN
-}
+with open('../gp/orca/vxmlp.pickle', 'rb') as f:
+	(vxmodel, vxxscaler, vxyscaler) = pickle.load(f)
+vxgp = loadMLPModel('vx', vxmodel, vxyscaler)
+with open('../gp/orca/vymlp.pickle', 'rb') as f:
+	(vymodel, vyxscaler, vyyscaler) = pickle.load(f)
+vygp = loadMLPModel('vy', vymodel, vyyscaler)
+# print(vxmodel.X_train_)
+with open('../gp/orca/omegamlp.pickle', 'rb') as f:
+	(omegamodel, omegaxscaler, omegayscaler) = pickle.load(f)
+omegagp = loadMLPModel('omega', omegamodel, omegayscaler)
+gpmodels = {
+	'vx': vxgp,
+	'vy': vygp,
+	'omega': omegagp,
+	'xscaler': vxxscaler,
+	'yscaler': vxyscaler,
+	}
 x_train = np.zeros((GP_EPS_LEN,2+3+1))
 
-optimizer = torch.optim.SGD(model_.parameters(), lr=0.001,momentum=0.9)
-loss_fn = torch.nn.MSELoss()
 
 #####################################################################
 # extract data
@@ -180,22 +97,42 @@ horizon = HORIZON
 #####################################################################
 # define controller
 
-nlp = setupNLP(horizon, Ts, COST_Q, COST_P, COST_R, params, models, track, GP_EPS_LEN=GP_EPS_LEN, 
+nlp = setupNLP(horizon, Ts, COST_Q, COST_P, COST_R, params, gpmodels, track, GP_EPS_LEN=GP_EPS_LEN, 
 	track_cons=TRACK_CONS, error_correction=ERROR_CORR)
 
 #####################################################################
 # define load_data
 
-def load_data(data_dyn, data_kin, VARIDX):
-	y_all = (data_dyn['states'][:6,1:]-data_dyn['states'][:6,:-1]) #- data_kin['states'][:6,1:N_SAMPLES+1]
+def load_data(CTYPE, TRACK_NAME, VARIDX, xscaler=None, yscaler=None):
+	data_dyn = np.load('../data/DYN-{}-{}.npz'.format(CTYPE, TRACK_NAME))
+	data_kin = np.load('../data/KIN-{}-{}.npz'.format(CTYPE, TRACK_NAME))
+	N_SAMPLES = data_dyn['states'].shape[1] - 1
+	y_all = data_dyn['states'][:6,1:N_SAMPLES+1] - data_kin['states'][:6,1:N_SAMPLES+1]
+	omega = data_dyn['states'][5:6,:N_SAMPLES].T
+	vy = data_dyn['states'][4:5,:N_SAMPLES].T
+	vx = data_dyn['states'][3:4,:N_SAMPLES].T
 	x = np.concatenate([
-		data_kin['inputs'][:,:-1].T,
-		data_dyn['inputs'][1,:-1].reshape(1,-1).T,
-		data_dyn['states'][3:6,:-1].T],
+		data_kin['inputs'][:,:N_SAMPLES].T,
+		data_kin['states'][6,:N_SAMPLES].reshape(1,-1).T,
+		data_dyn['states'][3:6,:N_SAMPLES].T,
+		data_dyn['states'][5:6,:N_SAMPLES].T/data_dyn['states'][3:4,:N_SAMPLES].T,
+		data_dyn['states'][5:6,:N_SAMPLES].T*data_dyn['states'][4:5,:N_SAMPLES].T,
+		data_dyn['states'][5:6,:N_SAMPLES].T*data_dyn['states'][3:4,:N_SAMPLES].T,
+		data_kin['inputs'][:1,:N_SAMPLES].T*data_dyn['states'][3:4,:N_SAMPLES].T,
+		data_dyn['states'][3:4,:N_SAMPLES].T**2,
+		data_dyn['states'][4:5,:N_SAMPLES].T/data_dyn['states'][3:4,:N_SAMPLES].T],
 		axis=1)
 	y = y_all[VARIDX].reshape(-1,1)
 
-	return x, y
+	if xscaler is None or yscaler is None:
+		xscaler = StandardScaler()
+		yscaler = StandardScaler()
+		xscaler.fit(x)
+		yscaler.fit(y)
+		return xscaler.transform(x), yscaler.transform(y), xscaler, yscaler
+		# return x, y, xscaler, yscaler
+	else:
+		return xscaler.transform(x), yscaler.transform(y)
 
 #####################################################################
 # closed-loop simulation
@@ -227,65 +164,26 @@ states[:n_states,0] = x_init
 print('starting at ({:.1f},{:.1f})'.format(x_init[0], x_init[1]))
 states_kin = np.zeros([7,n_steps+1])
 states_kin[:,0] = states[:,0]
-
+	
 # dynamic plot
-H = .08
-W = .04
+H = .13
+W = .07
 dims = np.array([[-H/2.,-W/2.],[-H/2.,W/2.],[H/2.,W/2.],[H/2.,-W/2.],[-H/2.,-W/2.]])
 
-
-# plt.figure()
-# plt.grid(True)
-# ax2 = plt.gca()
-# LnFfy, = ax2.plot(0, 0, label='Ffy')
-# LnFrx, = ax2.plot(0, 0, label='Frx')
-# LnFry, = ax2.plot(0, 0, label='Fry')
-# LnSpeeds, = ax2.plot(0, 0, label='Speeds')
-# plt.xlim([0, SIM_TIME])
-# plt.ylim([-params['mass']*9.81, params['mass']*9.81])
-# plt.xlabel('time [s]')
-# plt.ylabel('force [N]')
-# plt.legend()
-# plt.ion()
-
-# plt.figure()
-# plt.grid(True)
-# ax2 = plt.gca()
-# LnFry_pred, = ax2.plot(0, 0, label='Fry pred')
-# LnFry_gt, = ax2.plot(0, 0, label='Fry gt')
-# LnFfy_pred, = ax2.plot(0, 0, label='Ffy pred')
-# LnFfy_gt, = ax2.plot(0, 0, label='Ffy gt')
-# plt.xlim([-0.6, 0.6])
-# plt.ylim([-2*params['Dr'], 2*params['Dr']])
-# plt.xlabel('alpha [rad]')
-# plt.ylabel('force [N]')
-# plt.legend()
-# plt.ion()
 
 plt.figure()
 plt.grid(True)
 ax2 = plt.gca()
-LnDf, = ax2.plot(0, 0, label='mu(f)')
-LnDf_pred, = ax2.plot(0, 0, label='mu predicted(f)')
-LnDr, = ax2.plot(0, 0, label='mu(r)')
-LnDr_pred, = ax2.plot(0, 0, label='mu predicted(r)')
+LnFfy, = ax2.plot(0, 0, label='Ffy')
+LnFrx, = ax2.plot(0, 0, label='Frx')
+LnFry, = ax2.plot(0, 0, label='Fry')
+LnSpeeds, = ax2.plot(0, 0, label='Speeds')
 plt.xlim([0, SIM_TIME])
-plt.ylim([0, params['Df']*2.])
+plt.ylim([-params['mass']*9.81, params['mass']*9.81])
 plt.xlabel('time [s]')
-plt.ylabel('lateral force [N]')
+plt.ylabel('force [N]')
 plt.legend()
 plt.ion()
-
-# plt.figure()
-# plt.grid(True)
-# ax2 = plt.gca()
-
-# plt.xlim([0, SIM_TIME])
-# plt.ylim([0, params['Dr']*2.])
-# plt.xlabel('time [s]')
-# plt.ylabel('rear lateral force [N]')
-# plt.legend()
-# plt.ion()
 
 plt.figure()
 plt.grid(True)
@@ -322,78 +220,137 @@ if not os.path.exists(RUN_FOLDER+'Video/'):
 ref_speeds = []
 Drs = []
 Dfs = []
-Drs_pred = []
-Dfs_pred = []
-Df_init = model.Df
-Dr_init = model.Dr
 for idt in range(n_steps-horizon):
-	start_g = tm.time()
+
 	uprev = inputs[:,idt-1]
 	x0 = states[:,idt]
-	use_kinematic = True
+	use_kinematic = False
 	Drs.append(model.Dr)
 	Dfs.append(model.Df)
 	
-	# load new experience into data_dyn and data_kin
-	if idt > 0 : 
-		start = tm.time()	
-		min_ind = max(idt-GP_EPS_LEN-1,3)
-		data_dyn['states'] = states[:,min_ind:min(idt-1,GP_EPS_LEN+1+min_ind)]
-		data_dyn['dstates'] = dstates[:,min_ind:min(idt-1,GP_EPS_LEN+1+min_ind)]
-		data_dyn['inputs'] = inputs[:,min_ind:min(idt-1,GP_EPS_LEN+1+min_ind)]
-		
-		data_kin['states'] = states_kin[:,min_ind:min(idt-1,GP_EPS_LEN+1+min_ind)]
-		data_kin['inputs'] = inputs_kin[:,min_ind:min(idt-1,GP_EPS_LEN+1+min_ind)]
-	
-	
-		end = tm.time()
-		print("GP init time : ", end-start)
-		
-		y_trains = []
-		for VARIDX in [3,4,5] :
-			x_train, y_train = load_data(data_dyn,data_kin,VARIDX)
-			y_trains.append(torch.tensor(y_train))
-		y_train = torch.cat(y_trains,axis=1)
-		x_train = torch.tensor(x_train)
-	# Fine-tune the model
-	if idt > 12 :
-		start = tm.time()	
-		for i in range(ITERS_EACH_STEP) :
-			# Zero your gradients for every batch!
-			optimizer.zero_grad()
-			outputs = model_(x_train[10:])
-			loss = loss_fn(outputs, y_train[10:])
-			loss.backward()
-			# Adjust learning weights
-			optimizer.step()
-		end = tm.time()	
-		print("Iter " + str(idt) + " loss : ", loss.item(), "time : ", end-start)
-
-	if idt > 720 :
+	if idt > 310 :
 		model.Df -= model.Df/2200.
 		model.Dr -= model.Dr/2200.
-		params['Dr'] -= params['Dr']/2200.
-		params['Df'] -= params['Df']/2200.
-	
-	if idt > 310 :
-		use_kinematic = False
+		# load new experience into data_dyn and data_kin
+		start = tm.time()	
+		# data_dyn['states'] = states[:,:idt+1]
+		# data_dyn['dstates'] = dstates[:,:idt+1]
+		# data_dyn['inputs'] = inputs[:,:idt+1]
+		min_ind = 3#max(idt-GP_EPS_LEN-1,3)
+		# data_kin['states'] = states_kin[:,:idt+1]
+		# data_kin['inputs'] = inputs_kin[:,:idt+1]
+		data_dyn['states'] = states[:,min_ind:GP_EPS_LEN+1+min_ind]
+		data_dyn['dstates'] = dstates[:,min_ind:GP_EPS_LEN+1+min_ind]
+		data_dyn['inputs'] = inputs[:,min_ind:GP_EPS_LEN+1+min_ind]
 		
-	
+		# data_dyn['states'][:,idt:] = states[:,idt-1:idt]
+		# data_dyn['dstates'][:,idt:] = dstates[:,idt-1:idt]
+		# data_dyn['inputs'][:,idt:] = inputs[:,idt-1:idt]
+		
+		data_kin['states'] = states_kin[:,min_ind:GP_EPS_LEN+1+min_ind]
+		data_kin['inputs'] = inputs_kin[:,min_ind:GP_EPS_LEN+1+min_ind]
+		
+		# data_kin['states'][:,idt:] = states_kin[:,idt-1:idt]
+		# data_kin['inputs'][:,idt:] = inputs_kin[:,idt-1:idt]
+		
+		end = tm.time()
+		# print("GP init time : ", end-start)
+		# start = tm.time()
+		
+		# Get model train data
+		for VARIDX in [3,4,5] :
+			if VARIDX==3 :
+				x_train, y_train = load_data(data_dyn, data_kin, VARIDX, xscaler=vxxscaler, yscaler=vxyscaler)
+				# idtst = idt
+				# while idtst-3-2*min_ind+idt <= 306 :
+				# 	x_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = x_train[:idt-min_ind-2,:]
+				# 	y_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = y_train[:idt-min_ind-2,:]
+				# 	idtst += idt-min_ind-2
+				start = tm.time()
+				vxmodel = GaussianProcessRegressor(
+					alpha=1e-6, 
+					kernel=vxgp_kernel, 
+					normalize_y=True,
+					optimizer=None,
+					# n_restarts_optimizer=0,
+				)
+				vxmodel.fit(x_train, y_train)
+				end = tm.time()
+				# print("GP vx fit time : ", end-start)
+			if VARIDX==4 :
+				x_train, y_train = load_data(data_dyn, data_kin, VARIDX, xscaler=vyxscaler, yscaler=vyyscaler)
+				# idtst = idt
+				# while idtst-3-2*min_ind+idt <= 306 :
+				# 	x_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = x_train[:idt-min_ind-2,:]
+				# 	y_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = y_train[:idt-min_ind-2,:]
+				# 	idtst += idt-min_ind-2
+				start = tm.time()
+				vymodel = GaussianProcessRegressor(
+					alpha=1e-6, 
+					kernel=vygp_kernel, 
+					normalize_y=True,
+					optimizer=None,
+					# n_restarts_optimizer=0,
+				)
+				vymodel.fit(x_train, y_train)
+				end = tm.time()
+				# print("GP vy fit time : ", end-start)
+			if VARIDX==5 :
+				x_train, y_train = load_data(data_dyn, data_kin, VARIDX, xscaler=omegaxscaler, yscaler=omegayscaler)
+				# idtst = idt
+				# while idtst-3-2*min_ind+idt <= 306 :
+				# 	x_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = x_train[:idt-min_ind-2,:]
+				# 	y_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = y_train[:idt-min_ind-2,:]
+				# 	idtst += idt-min_ind-2
+				start = tm.time()
+				omegamodel = GaussianProcessRegressor(
+					alpha=1e-6, 
+					kernel=omegagp_kernel, 
+					normalize_y=True,
+					optimizer=None,
+					# n_restarts_optimizer=0,
+				)
+				omegamodel.fit(x_train, y_train)
+				end = tm.time()
+				# print("GP omega fit time : ", end-start)
+		# end = tm.time()
+		# print("GP formation time : ", end-start)
+		# start = tm.time()
+		# vxgp = loadGPModel('vx', vxmodel, vxxscaler, vxyscaler)
+		# vygp = loadGPModel('vy', vymodel, vyxscaler, vyyscaler)
+		# omegagp = loadGPModel('omega', omegamodel, omegaxscaler, omegayscaler)
+		# gpmodels = {
+		# 	'vx': vxgp,
+		# 	'vy': vygp,
+		# 	'omega': omegagp,
+		# 	'xscaler': vxxscaler,
+		# 	'yscaler': vxyscaler,
+		# }
+		# end = tm.time()
+		# print("GP load time : ", end-start)
+		start = tm.time()
+		# nlp = setupNLP(horizon, Ts, COST_Q, COST_P, COST_R, params, gpmodels, track, 
+		# 	track_cons=TRACK_CONS, error_correction=ERROR_CORR)
+		# nlp.update_gp_models(gpmodels)
+		end = tm.time()
+		use_kinematic = False
+		# print("NLP setup time : ", end-start)
+	# else :
+
 	# planner based on BayesOpt
-	if idt > 2 :
-		xref, projidx, v = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx,curr_mu=(Dfs_pred[idt-1]+Drs_pred[idt-1])/(9.81*params['mass']))
-	else :
-		xref, projidx, v = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
-	ref_speeds.append(v)
+	xref, projidx = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
+	ref_speeds.append(track.v_raceline[projidx])
 	if projidx > 656 :
 		projidx = 0
 	# print(projidx)
 	# solve NLP
 	start = tm.time()	
-	umpc, fval, xmpc = nlp.solve(x0=x0, xref=xref[:2,:], uprev=uprev, use_kinematic=use_kinematic,models=model_)
+	umpc, fval, xmpc = nlp.solve(x0=x0, xref=xref[:2,:], uprev=uprev, vxm=vxmodel, vym=vymodel, omegam=omegamodel, use_kinematic=use_kinematic)
 	end = tm.time()
 	inputs[:,idt] = np.array([umpc[0,0], states[n_states,idt] + Ts*umpc[1,0]])
 	print("iter: {}, cost: {:.5f}, time: {:.2f}".format(idt, fval, end-start))
+
+	start = tm.time()
 
 	# update current position with numerical integration (exact model)
 	x_next, dxdt_next = model.sim_continuous(states[:n_states,idt], inputs[:,idt].reshape(-1,1), [0, Ts])
@@ -422,11 +379,10 @@ for idt in range(n_steps-horizon):
 		hstates2[:,idh+1] = xmpc[:n_states,idh+1]
 
 	# update plot
-	start = tm.time()
 	LnS.set_xdata(states[0,:idt+1])
 	LnS.set_ydata(states[1,:idt+1])
 	if SAVE_VIDEO :
-		plt.savefig(RUN_FOLDER+'Video/frame'+str(idt)+'.png', dpi=200)
+		plt.savefig(RUN_FOLDER+'Video/frame'+str(idt)+'.png', dpi=300)
 	
 	LnR.set_xdata(xref[0,1:])
 	LnR.set_ydata(xref[1,1:])
@@ -440,36 +396,24 @@ for idt in range(n_steps-horizon):
 	LnH2.set_xdata(hstates2[0])
 	LnH2.set_ydata(hstates2[1])
 	
-	alpha_f = torch.tensor(np.arange(-.6,.6,0.01)).unsqueeze(1)
-	Ffy_pred = model_.Fy(alpha_f)[:,0].detach().numpy()
-	Ffy_true = params['Df']*torch.sin(params['Cf']*torch.atan(params['Bf']*alpha_f))
-	Dfs_pred.append(np.max(Ffy_pred))
-	LnDf.set_xdata(time[:idt+1])
-	LnDf.set_ydata(Dfs[:idt+1])
-	LnDf_pred.set_xdata(time[:idt+1])
-	LnDf_pred.set_ydata(Dfs_pred[:idt+1])
-	
-	alpha_r = torch.tensor(np.arange(-.6,.6,0.01)).unsqueeze(1)
-	Fry_pred = model_.Ry(alpha_r)[:,0].detach().numpy()
-	Fry_true = params['Dr']*torch.sin(params['Cr']*torch.atan(params['Br']*alpha_r))
-	Drs_pred.append(np.max(Fry_pred))
-	LnDr.set_xdata(time[:idt+1])
-	LnDr.set_ydata(Drs[:idt+1])
-	LnDr_pred.set_xdata(time[:idt+1])
-	LnDr_pred.set_ydata(Drs_pred[:idt+1])
-	
+	LnFfy.set_xdata(time[:idt+1])
+	LnFfy.set_ydata(Ffy[:idt+1])
+
+	LnFrx.set_xdata(time[:idt+1])
+	LnFrx.set_ydata(Frx[:idt+1])
+
+	LnFry.set_xdata(time[:idt+1])
+	LnFry.set_ydata(Fry[:idt+1])
+
 	LnSpeeds.set_xdata(time[:idt+1])
 	LnSpeeds.set_ydata(states[3,:idt+1])
 
 	LnRefSpeeds.set_xdata(time[:idt+1])
 	LnRefSpeeds.set_ydata(ref_speeds)
-	
-	plt.pause(Ts/10000)
-	end = tm.time()	
+	plt.pause(Ts/1000)
+	end = tm.time()
 	print("Remaining time : ", (end-start))
-	end_g = tm.time()
-	print("Total time : ", (end_g-start_g))
-
+	
 plt.ioff()
 
 #####################################################################
