@@ -1,4 +1,4 @@
-"""	Nonlinear MPC using Kinematic6 and GPs for model correction.
+"""	Nonlinear MPC using e-Kinematic and GPs for model correction.
 """
 
 __author__ = 'Dvij Kalaria'
@@ -22,6 +22,14 @@ from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process import GaussianProcessRegressor
 import os
+import matplotlib.pylab as pylab
+params = {'legend.fontsize': 'x-large',
+        #   'figure.figsize': (15, 5),
+         'axes.labelsize': 'x-large',
+         'axes.titlesize':'x-large',
+         'xtick.labelsize':'x-large',
+         'ytick.labelsize':'x-large'}
+pylab.rcParams.update(params)
 
 #####################################################################
 # CHANGE THIS
@@ -60,7 +68,7 @@ model_kin = Kinematic6(**params)
 
 TRACK_NAME = 'ETHZ'
 track = ETHZ(reference='optimal', longer=True)
-SIM_TIME = 26.
+SIM_TIME = 34.6
 
 #####################################################################
 # load GP models
@@ -189,8 +197,8 @@ states_kin = np.zeros([7,n_steps+1])
 states_kin[:,0] = states[:,0]
 	
 # dynamic plot
-H = .13
-W = .07
+H = .2
+W = .1
 dims = np.array([[-H/2.,-W/2.],[-H/2.,W/2.],[H/2.,W/2.],[H/2.,-W/2.],[-H/2.,-W/2.]])
 
 
@@ -214,7 +222,7 @@ ax2 = plt.gca()
 LnSpeeds, = ax2.plot(0, 0, label='Speeds')
 LnRefSpeeds, = ax2.plot(0, 0, label='Ref Speeds')
 plt.xlim([0, SIM_TIME])
-plt.ylim([0, 10.])
+plt.ylim([0, 6.])
 plt.xlabel('time [s]')
 plt.ylabel('force [N]')
 plt.legend()
@@ -222,13 +230,13 @@ plt.legend()
 fig = track.plot(color='k', grid=False)
 plt.plot(track.x_raceline, track.y_raceline, '--k', alpha=0.5, lw=0.5)
 ax = plt.gca()
-LnS, = ax.plot(states[0,0], states[1,0], 'r', alpha=0.8)
-LnR, = ax.plot(states[0,0], states[1,0], '-b', marker='o', markersize=.5, lw=0.5, label="reference")
+LnS, = ax.plot(states[0,0], states[1,0], 'r', alpha=0.8, label='Trajectory')
+# LnR, = ax.plot(states[0,0], states[1,0], '-b', marker='o', markersize=.5, lw=0.5, label="reference")
 xyproj, _ = track.project(x=x_init[0], y=x_init[1], raceline=track.raceline)
 LnP, = ax.plot(states[0,0] + dims[:,0]*np.cos(states[2,0]) - dims[:,1]*np.sin(states[2,0])\
 		, states[1,0] + dims[:,0]*np.sin(states[2,0]) + dims[:,1]*np.cos(states[2,0]), 'purple', alpha=0.8, label='Current pose')
-LnH, = ax.plot(hstates[0], hstates[1], '-g', marker='o', markersize=.5, lw=0.5, label="ground truth")
-LnH2, = ax.plot(hstates2[0], hstates2[1], '-r', marker='o', markersize=.5, lw=0.5, label="prediction")
+LnH, = ax.plot(hstates[0], hstates[1], '-g', marker='o', markersize=.5, lw=0.5, color='green', label="ground truth")
+LnH2, = ax.plot(hstates2[0], hstates2[1], '-r', marker='o', markersize=.5, lw=0.5, color='blue', label="prediction")
 plt.xlabel('x [m]')
 plt.ylabel('y [m]')
 plt.legend()
@@ -243,25 +251,23 @@ if not os.path.exists(RUN_FOLDER+'Video/'):
 ref_speeds = []
 Drs = []
 Dfs = []
-for idt in range(n_steps-horizon):
 
+for idt in range(n_steps-horizon):
 	uprev = inputs[:,idt-1]
 	x0 = states[:,idt]
 	use_kinematic = True
 	Drs.append(model.Dr)
 	Dfs.append(model.Df)
 	
-	if idt > 310 :
+	if idt > 720 :
 		model.Df -= model.Df/2200.
 		model.Dr -= model.Dr/2200.
-		# load new experience into data_dyn and data_kin
+		params['Dr'] -= params['Dr']/2200.
+		params['Df'] -= params['Df']/2200.
+		
+	if idt > 310 :
+		min_ind = 3
 		start = tm.time()	
-		# data_dyn['states'] = states[:,:idt+1]
-		# data_dyn['dstates'] = dstates[:,:idt+1]
-		# data_dyn['inputs'] = inputs[:,:idt+1]
-		min_ind = 3#max(idt-GP_EPS_LEN-1,3)
-		# data_kin['states'] = states_kin[:,:idt+1]
-		# data_kin['inputs'] = inputs_kin[:,:idt+1]
 		data_dyn['states'] = states[:,min_ind:GP_EPS_LEN+1+min_ind]
 		data_dyn['dstates'] = dstates[:,min_ind:GP_EPS_LEN+1+min_ind]
 		data_dyn['inputs'] = inputs[:,min_ind:GP_EPS_LEN+1+min_ind]
@@ -302,11 +308,6 @@ for idt in range(n_steps-horizon):
 				# print("GP vx fit time : ", end-start)
 			if VARIDX==4 :
 				x_train, y_train = load_data(data_dyn, data_kin, VARIDX, xscaler=vyxscaler, yscaler=vyyscaler)
-				# idtst = idt
-				# while idtst-3-2*min_ind+idt <= 306 :
-				# 	x_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = x_train[:idt-min_ind-2,:]
-				# 	y_train[idtst-min_ind-1:idtst-3-2*min_ind+idt,:] = y_train[:idt-min_ind-2,:]
-				# 	idtst += idt-min_ind-2
 				start = tm.time()
 				vymodel = GaussianProcessRegressor(
 					alpha=1e-6, 
@@ -356,13 +357,17 @@ for idt in range(n_steps-horizon):
 		# 	track_cons=TRACK_CONS, error_correction=ERROR_CORR)
 		# nlp.update_gp_models(gpmodels)
 		end = tm.time()
+		
 		use_kinematic = False
 		# print("NLP setup time : ", end-start)
 	# else :
 
 	# planner based on BayesOpt
-	xref, projidx = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
-	ref_speeds.append(track.v_raceline[projidx])
+	if idt > 2 :
+		xref, projidx, v = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx, curr_mu=(model.Df+model.Dr)/(9.81*params['mass']))
+	else :
+		xref, projidx, v = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
+	ref_speeds.append(v)
 	if projidx > 656 :
 		projidx = 0
 	# print(projidx)
@@ -405,8 +410,8 @@ for idt in range(n_steps-horizon):
 	if SAVE_VIDEO :
 		plt.savefig(RUN_FOLDER+'Video/frame'+str(idt)+'.png', dpi=300)
 	
-	LnR.set_xdata(xref[0,1:])
-	LnR.set_ydata(xref[1,1:])
+	# LnR.set_xdata(xref[0,1:])
+	# LnR.set_ydata(xref[1,1:])
 
 	LnP.set_xdata(states[0,idt] + dims[:,0]*np.cos(states[2,idt]) - dims[:,1]*np.sin(states[2,idt]))
 	LnP.set_ydata(states[1,idt] + dims[:,0]*np.sin(states[2,idt]) + dims[:,1]*np.cos(states[2,idt]))
@@ -496,5 +501,7 @@ plt.ylabel('mu*N [N]')
 plt.grid(True)
 plt.legend()
 plt.savefig(RUN_FOLDER+'max_friction_forces.png')
+
+fig.savefig(RUN_FOLDER+'track_run.png')
 
 plt.show()

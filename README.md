@@ -1,7 +1,11 @@
 # APACRace
 
 Code for Adaptive Planning and Control with Time-Varying Tire Models for Autonomous Racing Using Extreme Learning Machine ([Website](https://dvij542.github.io/apacrace/)) ([Paper](https://arxiv.org/abs/2303.08235))
-NOTE: Well formatted and documented version of the code will be available soon
+NOTE: Well formatted and cleaned version of the code will be available soon
+
+## Overview 
+
+<img src="overview.jpg" />
 
 ## Installation
 We recommend creating a new [conda](https://docs.conda.io/en/latest/) environment:
@@ -38,6 +42,18 @@ The following steps are explained for the [1:43 scale autonomous racing platform
     ```
     python render_speeds.py
     ```
+
+3. Run APACRace (MLP predictor for tire forces learned online) controller with the generated offline library of racelines as reference as follows:-
+	```
+	cd mpc
+	python run_nmpc_online_semi_mlp.py
+	```
+
+4. (optional) Run the following optionally for comparison:-
+	a. Full dynamics learning with MLP: run_nmpc_online_mlp.py
+	b. Using Gaussian Process (GP) for model correction: run_nmpc_online_gp.py
+	c. Dynamic model with known parameters (Oracle): run_nmpc_true.py 
+	d. E-kinematic model with no learning: run_nmpc_ekin.py
 
 ## How to run offline GP-based controller
 The following steps are explained for the [1:43 scale autonomous racing platform](https://arxiv.org/abs/1711.07300) at ETH Zurich. We also provide code for the 1:10 scale [F1TENTH](http://f1tenth.org/) racing platform at University of Pennsylvania.

@@ -15,7 +15,7 @@ Welcome to CARLA auto control.
 """
 from __future__ import print_function
 
-"""	Nonlinear MPC using true Dynamic bicycle model.
+"""	Nonlinear MPC using e-kinematic bicycle model and MLP based tire force prediction learned online.
 """
 
 __author__ = 'Dvij Kalaria'
