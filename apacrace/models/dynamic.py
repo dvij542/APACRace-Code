@@ -154,7 +154,7 @@ class Dynamic(Model):
 		vx = cs.if_else(vx<vmin, vmin, vx)
 
 		if self.carla : 
-			Frx = cs.if_else(pwm>0,self.Cm1-self.Cm2*vx,self.Cm1_brake-self.Cm2_brake*vx)*pwm - self.Cr0 - self.Cr2*(vx**2)
+			Frx = cs.if_else(pwm>0,self.Cm1,self.Cm2)*pwm - self.Cr0 - self.Cr2*(vx**2)
 		else :
 			Frx = (self.Cm1-self.Cm2*vx)*pwm - self.Cr0 - self.Cr2*(vx**2)
 		alphaf = steer - cs.atan2((self.lf*omega + vy), vx)
