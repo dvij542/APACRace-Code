@@ -69,6 +69,8 @@ def CarlaParams(control='pwm'):
 		'Dr': Dr,
 		'Cm1': Cm1,
 		'Cm2': Cm2,
+		'Cm1_brake': Cm1_brake,
+		'Cm2_brake': Cm2_brake,
 		'Cr0': Cr0,
 		'Cr2': Cr2,
 		'max_acc': max_acc,
