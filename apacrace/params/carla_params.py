@@ -22,7 +22,9 @@ def CarlaParams(control='pwm'):
 	Dr = 16000
 
 	Cm1 = 550*(3.45*0.919)/(0.34)
-	Cm2 = 2800/0.34
+	Cm2 = 0.
+	Cm1_brake = 2800/0.34
+	Cm2_brake = 0.
 	Cr0 = 50.
 	Cr2 = 0.5
 
