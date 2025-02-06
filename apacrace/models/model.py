@@ -6,7 +6,7 @@ __email__ = 'achinj@seas.upenn.edu'
 
 
 import numpy as np
-from bayes_race.utils.rk6 import odeintRK6
+from apacrace.utils.rk6 import odeintRK6
 import matplotlib.pyplot as plt
 
 

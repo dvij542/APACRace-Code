@@ -9,7 +9,7 @@ __email__ = 'dkalaria@andrew.cmu.edu'
 import os
 import numpy as np
 from numpy import loadtxt
-from bayes_race.tracks import Track
+from apacrace.tracks import Track
 
 
 class CarlaTrack(Track):

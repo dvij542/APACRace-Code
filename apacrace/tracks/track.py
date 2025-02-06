@@ -7,7 +7,7 @@ __email__ = 'achinj@seas.upenn.edu'
 
 import numpy as np
 import matplotlib.pyplot as plt
-from bayes_race.utils import Projection, Spline, Spline2D
+from apacrace.utils import Projection, Spline, Spline2D
 
 class Track:
 	"""	Base class for all tracks"""

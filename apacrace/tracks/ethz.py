@@ -9,7 +9,7 @@ __email__ = 'achinj@seas.upenn.edu'
 import os
 import numpy as np
 from numpy import loadtxt
-from bayes_race.tracks import Track
+from apacrace.tracks import Track
 
 
 class ETHZTrack(Track):
@@ -71,7 +71,7 @@ class ETHZTrack(Track):
 				n_samples=n_samples
 				)
 		elif reference is 'optimal':
-			file_name = 'ethz{}_raceline{}.npz'.format(track_id, suffix)
+			file_name = 'ethz{}_raceline{}_.npz'.format(track_id, suffix)
 			file_path = os.path.join(os.path.dirname(__file__), 'src', file_name)
 			raceline = np.load(file_path)
 			n_samples = raceline['x'].size

@@ -13,7 +13,7 @@
 
 import math
 
-from bayes_race.models.kinematicst import KinematicST
+from apacrace.models.kinematicst import KinematicST
 
 
 class SteerSettings(object):

@@ -1,7 +1,5 @@
-*.pickle
 proj*.zip
 proj*
-*.npz
 *.gif
 *__pycache__*
 engine-ws*
@@ -9,5 +7,4 @@ engine-ws*
 *RUN_ONLINE*
 *.egg-info*
 *.png
-bayesrace/
 carla-simulator/

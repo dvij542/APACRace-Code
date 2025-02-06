@@ -7,7 +7,7 @@ setup(
 	author_email='dkalaria@andrew.cmu.edu',
 	install_requires=[
 		'pandas==1.0.3',
-		'cvxpy==1.0.15',
+		'cvxpy==1.1.24',
 		'casadi==3.5.1',
 		'botorch==0.1.4',
 		'gpytorch==0.3.6',

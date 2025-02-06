@@ -10,8 +10,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from bayes_race.tracks import Track
-from bayes_race.tracks.compute_io import ComputeIO
+from apacrace.tracks import Track
+from apacrace.tracks.compute_io import ComputeIO
 
 
 class RandomTrack(Track):

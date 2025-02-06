@@ -22,23 +22,16 @@ cd APACRace-Code/
 pip install -e .
 ```
 
-3. Run online-learning based MPC. By default boundary constraints are turned off for faster execution.
-	```
-	cd apacrace/mpc
-	python run_nmpc_orca_gp.py
-	```
-	MPC without GP correction is shown on the left, and with GP correction on the right.
-
 ## How to run online learning based controller (APACRace)
 The following steps are explained for the [1:43 scale autonomous racing platform](https://arxiv.org/abs/1711.07300) at ETH Zurich. We also provide code for the 1:10 scale [F1TENTH](http://f1tenth.org/) racing platform at University of Pennsylvania.
 
-1. Compute the racing line for the track we want to race on.
+1. (Optional, generated raceline is in repo) Compute the racing line for the track we want to race on.
 	```
 	cd apacrace/raceline
 	python generate_raceline_ethz.py
 	```
 
-2. Render speeds along the raceline for different tire friction limits by running :-
+2. (Optional, generated raceline library is in repo) Render speeds along the raceline for different tire friction limits by running :-
     ```
     python render_speeds.py
     ```
@@ -55,7 +48,7 @@ The following steps are explained for the [1:43 scale autonomous racing platform
 	c. Dynamic model with known parameters (Oracle): run_nmpc_true.py 
 	d. E-kinematic model with no learning: run_nmpc_ekin.py
 
-## How to run offline GP-based controller
+## How to run offline GP-based controller (BayesRace)
 The following steps are explained for the [1:43 scale autonomous racing platform](https://arxiv.org/abs/1711.07300) at ETH Zurich. We also provide code for the 1:10 scale [F1TENTH](http://f1tenth.org/) racing platform at University of Pennsylvania.
 
 1. Compute the racing line for the track we want to race on.

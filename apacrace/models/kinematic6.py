@@ -15,8 +15,8 @@ __email__ = 'achinj@seas.upenn.edu'
 
 import numpy as np
 import casadi as cs
-from bayes_race.models.model import Model
-from bayes_race.params import ORCA
+from apacrace.models.model import Model
+from apacrace.params import ORCA
 
 
 class Kinematic6(Model):

@@ -8,8 +8,8 @@ __email__ = 'dkalaria@andrew.cmu.edu'
 import numpy as np
 import casadi as cs
 
-from bayes_race.models import Kinematic6
-from bayes_race.mpc.constraints import Boundary
+from apacrace.models import Kinematic6
+from apacrace.mpc.constraints import Boundary
 import time as tm
 import math
 import torch

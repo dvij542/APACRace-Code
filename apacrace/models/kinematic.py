@@ -17,8 +17,8 @@ __email__ = 'achinj@seas.upenn.edu'
 
 
 import numpy as np
-from bayes_race.models.model import Model
-from bayes_race.params import F110
+from apacrace.models.model import Model
+from apacrace.params import F110
 
 
 class Kinematic(Model):

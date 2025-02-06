@@ -9,7 +9,7 @@ __email__ = 'achinj@seas.upenn.edu'
 import os
 import numpy as np
 from numpy import loadtxt
-from bayes_race.tracks import Track
+from apacrace.tracks import Track
 
 
 class UCBTrack(Track):

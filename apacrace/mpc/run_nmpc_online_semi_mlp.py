@@ -12,12 +12,12 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from bayes_race.params import ORCA
-from bayes_race.models import Dynamic, Kinematic6
-from bayes_race.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel, loadTorchModel, loadTorchModelEq, loadTorchModelImplicit
-from bayes_race.tracks import ETHZ
-from bayes_race.mpc.planner import ConstantSpeed, GetCBFStateInner, GetCBFStateOuter, get_closest_distance_fast
-from bayes_race.mpc.gpmpc_torch import setupNLP
+from apacrace.params import ORCA
+from apacrace.models import Dynamic, Kinematic6
+from apacrace.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel, loadTorchModel, loadTorchModelEq, loadTorchModelImplicit
+from apacrace.tracks import ETHZ
+from apacrace.mpc.planner import ConstantSpeed
+from apacrace.mpc.gpmpc_torch import setupNLP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -36,9 +36,9 @@ pylab.rcParams.update(params)
 #####################################################################
 # Tunable Params
 
-GP_EPS_LEN = 305
+GP_EPS_LEN = 410
 mu_init = 1.
-t_collect = 6.2
+t_collect = 8.
 LR = 0.002
 BETA = 0.9
 
@@ -54,10 +54,10 @@ statistics = []
 SAVE_RESULTS = True
 ERROR_CORR = True
 TRACK_CONS = False
-SAVE_VIDEO = True
-RUN_NO = 'without1' # From 'with_var_speeds', 'with_const_speeds' or 'without'
+SAVE_VIDEO = False
+RUN_NO = 'with_var_speeds' # From 'with_var_speeds', 'with_const_speeds' or 'without'
 ITERS_EACH_STEP = 50
-LOAD_MODEL = True
+LOAD_MODEL = False
 ACT_FN = 'relu'
 SAFEGUARD = True
 MAX_STEER = 0.34
@@ -65,7 +65,7 @@ VEHICLE_MODEL = 'Kinematic'
 lambda_ = 10.
 lambda_2 = 3.
 ALPHA = 1.
-
+RENDER = False
 torch.manual_seed(3)
 random.seed(0)
 np.random.seed(0)
@@ -106,6 +106,8 @@ class DynamicModel(torch.nn.Module):
 		self.Ry[0].weight.data.fill_(1.)
 		# print(self.Ry[0].bias)
 		self.Ry[0].bias.data = torch.arange(-.6,.6,(1.2)/6.).to(torch.float64)
+		self.Ry[2].weight.data.fill_(0.)
+		self.Ry[2].bias.data.fill_(0.)
 		# self.Ry[2].weight.data.fill_(1.)
 		# print(self.Ry[0].bias)
 		# print(self.Ry[0].weight)
@@ -114,6 +116,9 @@ class DynamicModel(torch.nn.Module):
 					torch.nn.Linear(6,1).to(torch.float64))
 		
 		self.Fy[0].weight.data.fill_(1.)
+		self.Fy[2].weight.data.fill_(0.)
+		self.Fy[2].bias.data.fill_(0.)
+
 		# print(self.Ry[0].bias)
 		self.Fy[0].bias.data = torch.arange(-.6,.6,(1.2)/6.).to(torch.float64)
 		self.deltat = deltat
@@ -333,7 +338,7 @@ model_kin = Kinematic6(**params)
 
 TRACK_NAME = 'ETHZ'
 track = ETHZ(reference='optimal', longer=True)
-SIM_TIME = 20.
+SIM_TIME = 36.
 
 #####################################################################
 # load mlp models
@@ -453,43 +458,45 @@ dims = np.array([[-H/2.,-W/2.],[-H/2.,W/2.],[H/2.,W/2.],[H/2.,-W/2.],[-H/2.,-W/2
 # plt.legend()
 # plt.ion()
 
-fig_mus = plt.figure()
-plt.grid(True)
-ax2 = plt.gca()
-LnDf, = ax2.plot(0, 0, label='max force(f)')
-LnDf_pred, = ax2.plot(0, 0, label='max force predicted(f)')
-LnDr, = ax2.plot(0, 0, label='max force(r)')
-LnDr_pred, = ax2.plot(0, 0, label='max force predicted(r)')
-plt.xlim([0, SIM_TIME])
-plt.ylim([0, params['Df']*1.5])
-plt.xlabel('time [s]')
-plt.ylabel('lateral force [N]')
-plt.legend()
-plt.ion()
+if RENDER :
+	fig_mus = plt.figure()
+	plt.grid(True)
+	ax2 = plt.gca()
+	LnDf, = ax2.plot(0, 0, label='max force(f)')
+	LnDf_pred, = ax2.plot(0, 0, label='max force predicted(f)')
+	LnDr, = ax2.plot(0, 0, label='max force(r)')
+	LnDr_pred, = ax2.plot(0, 0, label='max force predicted(r)')
+	plt.xlim([0, SIM_TIME])
+	plt.ylim([0, params['Df']*1.5])
+	plt.xlabel('time [s]')
+	plt.ylabel('lateral force [N]')
+	plt.legend()
+	plt.ion()
 
-fig_hs = plt.figure()
-plt.grid(True)
-ax2 = plt.gca()
-Lnh_inner, = ax2.plot(0, 0, label='inner boundary h')
-Lnh_outer, = ax2.plot(0, 0, label='outer boundary h')
-plt.xlim([0, SIM_TIME])
-plt.ylim([-1., 1.])
-plt.xlabel('time [s]')
-plt.ylabel('h')
-plt.legend()
+if RENDER :
+	fig_hs = plt.figure()
+	plt.grid(True)
+	ax2 = plt.gca()
+	# Lnh_inner, = ax2.plot(0, 0, label='inner boundary h')
+	# Lnh_outer, = ax2.plot(0, 0, label='outer boundary h')
+	plt.xlim([0, SIM_TIME])
+	plt.ylim([-1., 1.])
+	plt.xlabel('time [s]')
+	plt.ylabel('h')
+	plt.legend()
 
 
-fig_cbf_map = plt.figure()
-plt.grid(True)
-ax2 = plt.gca()
-scatter_ = ax2.scatter([],[])
-scatter_gt = ax2.scatter([],[])
-scatter_bef = ax2.scatter([],[])
-plt.xlim([-.2, 1.1])
-plt.ylim([-0.37, 0.37])
-plt.xlabel('pwm')
-plt.ylabel('steering')
-plt.legend()
+# fig_cbf_map = plt.figure()
+# plt.grid(True)
+# ax2 = plt.gca()
+# scatter_ = ax2.scatter([],[])
+# scatter_gt = ax2.scatter([],[])
+# scatter_bef = ax2.scatter([],[])
+# plt.xlim([-.2, 1.1])
+# plt.ylim([-0.37, 0.37])
+# plt.xlabel('pwm')
+# plt.ylabel('steering')
+# plt.legend()
 
 
 # plt.figure()
@@ -503,32 +510,34 @@ plt.legend()
 # plt.legend()
 # plt.ion()
 
-fig_speeds = plt.figure()
-plt.grid(True)
-ax2 = plt.gca()
-LnSpeeds, = ax2.plot(0, 0, label='Speeds')
-LnRefSpeeds, = ax2.plot(0, 0, label='Ref Speeds')
-plt.xlim([0, SIM_TIME])
-plt.ylim([0, 6.])
-plt.xlabel('time [s]')
-plt.ylabel('speed [m/s]')
-plt.legend()
+if RENDER :
+	fig_speeds = plt.figure()
+	plt.grid(True)
+	ax2 = plt.gca()
+	LnSpeeds, = ax2.plot(0, 0, label='Speeds')
+	LnRefSpeeds, = ax2.plot(0, 0, label='Ref Speeds')
+	plt.xlim([0, SIM_TIME])
+	plt.ylim([0, 6.])
+	plt.xlabel('time [s]')
+	plt.ylabel('speed [m/s]')
+	plt.legend()
 
-fig_track = track.plot(color='k', grid=False)
-plt.plot(track.x_raceline, track.y_raceline, '--k', alpha=0.5, lw=0.5)
-ax = plt.gca()
-LnS, = ax.plot(states[0,0], states[1,0], 'r', label='Trajectory',alpha=0.8)
-# LnR, = ax.plot(states[0,0], states[1,0], '-b', marker='o', markersize=.5, lw=0.5, label="reference")
-xyproj, _ = track.project(x=x_init[0], y=x_init[1], raceline=track.raceline)
-LnP, = ax.plot(states[0,0] + dims[:,0]*np.cos(states[2,0]) - dims[:,1]*np.sin(states[2,0])\
-		, states[1,0] + dims[:,0]*np.sin(states[2,0]) + dims[:,1]*np.cos(states[2,0]), 'purple', alpha=0.8, label='Current pose')
-LnH, = ax.plot(hstates[0], hstates[1], '-g', marker='o', markersize=.5, lw=0.5, color='green', label="ground truth")
-LnH2, = ax.plot(hstates2[0], hstates2[1], '-r', marker='o', markersize=.5, lw=0.5, color='blue', label="prediction")
-plt.xlabel('x [m]')
-plt.ylabel('y [m]')
-plt.legend()
+if RENDER :
+	fig_track = track.plot(color='k', grid=False)
+	plt.plot(track.x_raceline, track.y_raceline, '--k', alpha=0.5, lw=0.5)
+	ax = plt.gca()
+	LnS, = ax.plot(states[0,0], states[1,0], 'r', label='Trajectory',alpha=0.8)
+	# LnR, = ax.plot(states[0,0], states[1,0], '-b', marker='o', markersize=.5, lw=0.5, label="reference")
+	xyproj, _ = track.project(x=x_init[0], y=x_init[1], raceline=track.raceline)
+	LnP, = ax.plot(states[0,0] + dims[:,0]*np.cos(states[2,0]) - dims[:,1]*np.sin(states[2,0])\
+			, states[1,0] + dims[:,0]*np.sin(states[2,0]) + dims[:,1]*np.cos(states[2,0]), 'purple', alpha=0.8, label='Current pose')
+	LnH, = ax.plot(hstates[0], hstates[1], '-g', marker='o', markersize=.5, lw=0.5, color='green', label="ground truth")
+	LnH2, = ax.plot(hstates2[0], hstates2[1], '-r', marker='o', markersize=.5, lw=0.5, color='blue', label="prediction")
+	plt.xlabel('x [m]')
+	plt.ylabel('y [m]')
+	plt.legend()
 
-plt.show()
+	plt.show()
 
 if not os.path.exists(RUN_FOLDER):
 	os.makedirs(RUN_FOLDER)
@@ -567,7 +576,10 @@ for i in range(len(track.center_line[0])-1) :
 ref_errs = []
 boundary_viol_time = 0.
 v_factor = 0.9
+alpha_f_max = 0.45
+alpha_r_max = 0.45
 for idt in range(n_steps-horizon):
+	print("alpha maxes: ", alpha_f_max, alpha_r_max)
 	start_g = tm.time()
 	uprev = inputs[:,idt-1]
 	x0 = states[:,idt]
@@ -631,7 +643,7 @@ for idt in range(n_steps-horizon):
 	else :
 		xref, projidx, v = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx, curr_mu=mu_init,scale=v_factor)
 	ref_speeds.append(v)
-	ref_errs.append(get_closest_distance_fast(x0[:2],track))
+	# ref_errs.append(get_closest_distance_fast(x0[:2],track))
 
 	if projidx > 656 :
 		if laps_completed > 0 :
@@ -647,13 +659,13 @@ for idt in range(n_steps-horizon):
 	# print(projidx)
 	# solve NLP
 	start = tm.time()
-	projidx_inner, x_inner, theta_inner, curv_inner = GetCBFStateInner(x0=x0, track=track, projidx=projidx_inner)
-	projidx_outer, x_outer, theta_outer, curv_outer = GetCBFStateOuter(x0=x0, track=track, projidx=projidx_outer)
-	h_outers.append(x_outer)
-	h_inners.append(-x_inner)
-	if x_outer < 0 or x_inner>0 :
-		print("Boundary violated")
-		boundary_viol_time += Ts
+	# projidx_inner, x_inner, theta_inner, curv_inner = GetCBFStateInner(x0=x0, track=track, projidx=projidx_inner)
+	# projidx_outer, x_outer, theta_outer, curv_outer = GetCBFStateOuter(x0=x0, track=track, projidx=projidx_outer)
+	# h_outers.append(x_outer)
+	# h_inners.append(-x_inner)
+	# if x_outer < 0 or x_inner>0 :
+	# 	print("Boundary violated")
+	# 	boundary_viol_time += Ts
 	umpc, fval, xmpc = nlp.solve(x0=x0, xref=xref[:2,:], uprev=uprev, use_kinematic=use_kinematic,models=model_)
 	end = tm.time()
 	inputs[:,idt] = np.array([umpc[0,0], states[n_states,idt] + Ts*umpc[1,0]])
@@ -664,9 +676,9 @@ for idt in range(n_steps-horizon):
 	# 	theta_inner,x_inner,curv_inner,theta_outer,x_outer,curv_outer,params)
 	if states[1,idt] > 1. :
 		curv_inner = 100.
-	steer_opt, throttle_opt, map_opt, x_opt, y_opt = \
-		get_optimal_control(inputs[0,idt],inputs[1,idt],[x_inner,theta_inner,states[3,idt],states[4,idt],states[5,idt]],curv_inner,\
-			      [x_outer,theta_outer,states[3,idt],states[4,idt],states[5,idt]],curv_outer,params) 
+	# steer_opt, throttle_opt, map_opt, x_opt, y_opt = \
+	# 	get_optimal_control(inputs[0,idt],inputs[1,idt],[x_inner,theta_inner,states[3,idt],states[4,idt],states[5,idt]],curv_inner,\
+	# 		      [x_outer,theta_outer,states[3,idt],states[4,idt],states[5,idt]],curv_outer,params) 
 	# if states[1,idt] > -0.5 or states[0,idt] > 1. :
 	# 	inputs[:,idt] = np.array([throttle_opt, steer_opt])
 	# update current position with numerical integration (exact model)
@@ -682,7 +694,7 @@ for idt in range(n_steps-horizon):
 	states[:n_states,idt+1] = x_next[:,-1]
 	states[n_states,idt+1] = inputs[1,idt]
 	dstates[:,idt+1] = dxdt_next[:,-1]
-	Ffy[idt+1], Frx[idt+1], Fry[idt+1] = model.calc_forces(states[:,idt], inputs[:,idt])
+	Ffy[idt+1], Frx[idt+1], Fry[idt+1], alpha_f_curr, alpha_r_curr = model.calc_forces(states[:,idt], inputs[:,idt],return_slip=True)
 
 	# forward sim to predict over the horizon
 	steer = states[n_states,idt]
@@ -701,69 +713,74 @@ for idt in range(n_steps-horizon):
 	start = tm.time()
 	
 	colors = []
-	for m in map_opt.flatten() :
-		if m :
-			colors.append((0.,1.,0.))
-		else :
-			colors.append((1.,0.,0.))
+	# for m in map_opt.flatten() :
+	# 	if m :
+	# 		colors.append((0.,1.,0.))
+	# 	else :
+	# 		colors.append((1.,0.,0.))
 			
-	scatter_.set_offsets(np.c_[x_opt.flatten(),y_opt.flatten()])
-	scatter_gt.set_offsets(np.c_[throttle_opt,steer_opt])
-	scatter_bef.set_offsets(np.c_[control_before[0],control_before[1]])
-	scatter_.set_color(colors)
+	# scatter_.set_offsets(np.c_[x_opt.flatten(),y_opt.flatten()])
+	# scatter_gt.set_offsets(np.c_[throttle_opt,steer_opt])
+	# scatter_bef.set_offsets(np.c_[control_before[0],control_before[1]])
+	# scatter_.set_color(colors)
 	# scatter_.set_ydata(y_opt.flatten())
-	
-	LnS.set_xdata(states[0,:idt+1])
-	LnS.set_ydata(states[1,:idt+1])
+	if RENDER :
+		LnS.set_xdata(states[0,:idt+1])
+		LnS.set_ydata(states[1,:idt+1])
 	
 	
 	# LnR.set_xdata(xref[0,1:])
 	# LnR.set_ydata(xref[1,1:])
-
-	LnP.set_xdata(states[0,idt] + dims[:,0]*np.cos(states[2,idt]) - dims[:,1]*np.sin(states[2,idt]))
-	LnP.set_ydata(states[1,idt] + dims[:,0]*np.sin(states[2,idt]) + dims[:,1]*np.cos(states[2,idt]))
+	if RENDER :
+		LnP.set_xdata(states[0,idt] + dims[:,0]*np.cos(states[2,idt]) - dims[:,1]*np.sin(states[2,idt]))
+		LnP.set_ydata(states[1,idt] + dims[:,0]*np.sin(states[2,idt]) + dims[:,1]*np.cos(states[2,idt]))
 	
-	LnH.set_xdata(hstates[0])
-	LnH.set_ydata(hstates[1])
+	# LnH.set_xdata(hstates[0])
+	# LnH.set_ydata(hstates[1])
 
-	LnH2.set_xdata(hstates2[0])
-	LnH2.set_ydata(hstates2[1])
-	
-	alpha_f = torch.tensor(np.arange(-.6,.6,0.01)).unsqueeze(1)
+	# LnH2.set_xdata(hstates2[0])
+	# LnH2.set_ydata(hstates2[1])
+	alpha_f_max = min(0.6,max(np.abs(alpha_f_curr),alpha_f_max))
+	alpha_r_max = min(0.6,max(np.abs(alpha_r_curr),alpha_r_max))
+	alpha_f = torch.tensor(np.arange(-alpha_f_max,alpha_f_max,0.01)).unsqueeze(1)
 	Ffy_pred = model_.Fy(alpha_f)[:,0].detach().numpy()
+	# print(Ffy_pred[::10])
 	Ffy_true = params['Df']*torch.sin(params['Cf']*torch.atan(params['Bf']*alpha_f))
 	if idt < N_collect :
 		Dfs_pred.append(mu_init*params['mass']*9.8*params['lr']/(params['lf']+params['lr']))
 	else :
 		Dfs_pred.append(np.max(Ffy_pred))
-	LnDf.set_xdata(time[:idt+1])
-	LnDf.set_ydata(Dfs[:idt+1])
-	LnDf_pred.set_xdata(time[:idt+1])
-	LnDf_pred.set_ydata(Dfs_pred[:idt+1])
+	if RENDER :
+		LnDf.set_xdata(time[:idt+1])
+		LnDf.set_ydata(Dfs[:idt+1])
+		LnDf_pred.set_xdata(time[:idt+1])
+		LnDf_pred.set_ydata(Dfs_pred[:idt+1])
 	
-	alpha_r = torch.tensor(np.arange(-.6,.6,0.01)).unsqueeze(1)
+	alpha_r = torch.tensor(np.arange(-alpha_r_max,alpha_r_max,0.01)).unsqueeze(1)
 	Fry_pred = model_.Ry(alpha_r)[:,0].detach().numpy()
 	Fry_true = params['Dr']*torch.sin(params['Cr']*torch.atan(params['Br']*alpha_r))
 	if idt < N_collect :
 		Drs_pred.append(mu_init*params['mass']*9.8*params['lf']/(params['lf']+params['lr']))
 	else :
 		Drs_pred.append(np.max(Fry_pred))
-	LnDr.set_xdata(time[:idt+1])
-	LnDr.set_ydata(Drs[:idt+1])
-	LnDr_pred.set_xdata(time[:idt+1])
-	LnDr_pred.set_ydata(Drs_pred[:idt+1])
-	# print((time[:idt+1]),(states[3,:idt+1]))
 	
-	LnSpeeds.set_xdata(time[:idt+1])
-	LnSpeeds.set_ydata(states[3,:idt+1])
+	if RENDER :
+		LnDr.set_xdata(time[:idt+1])
+		LnDr.set_ydata(Drs[:idt+1])
+		LnDr_pred.set_xdata(time[:idt+1])
+		LnDr_pred.set_ydata(Drs_pred[:idt+1])
+		# print((time[:idt+1]),(states[3,:idt+1]))
+		
+		LnSpeeds.set_xdata(time[:idt+1])
+		LnSpeeds.set_ydata(states[3,:idt+1])
 
-	Lnh_outer.set_xdata(time[:idt+1])
-	Lnh_outer.set_ydata(h_outers)
-	Lnh_inner.set_xdata(time[:idt+1])
-	Lnh_inner.set_ydata(h_inners)
-	# print((time[:idt+1]),(ref_speeds))
-	LnRefSpeeds.set_xdata(time[:idt+1])
-	LnRefSpeeds.set_ydata(ref_speeds)
+		# Lnh_outer.set_xdata(time[:idt+1])
+		# Lnh_outer.set_ydata(h_outers)
+		# Lnh_inner.set_xdata(time[:idt+1])
+		# Lnh_inner.set_ydata(h_inners)
+		# print((time[:idt+1]),(ref_speeds))
+		LnRefSpeeds.set_xdata(time[:idt+1])
+		LnRefSpeeds.set_ydata(ref_speeds)
 	
 	if idt%1 == 0 :
 		plt.pause(Ts/10000)
@@ -773,8 +790,8 @@ for idt in range(n_steps-horizon):
 		fig_track.savefig(RUN_FOLDER+'Video/frame'+str(idt)+'.png', dpi=200)
 		# fig_speeds.savefig(RUN_FOLDER+'Video_speeds/frame'+str(idt)+'.png', dpi=200)
 		# fig_mus.savefig(RUN_FOLDER+'Video_mus/frame'+str(idt)+'.png', dpi=200)
-		fig_hs.savefig(RUN_FOLDER+'Video_hs/frame'+str(idt)+'.png')
-		fig_cbf_map.savefig(RUN_FOLDER+'Video_cbf_map/frame'+str(idt)+'.png')
+		# fig_hs.savefig(RUN_FOLDER+'Video_hs/frame'+str(idt)+'.png')
+		# fig_cbf_map.savefig(RUN_FOLDER+'Video_cbf_map/frame'+str(idt)+'.png')
 	end_g = tm.time()
 	print("Total time : ", (end_g-start_g))
 
@@ -844,10 +861,11 @@ plt.savefig(RUN_FOLDER+'max_friction_forces.png')
 # fig_cbf_map.savefig(RUN_FOLDER+'cbf_map.png')
 # fig_hs.savefig(RUN_FOLDER+'hs.png')
 
+if RENDER :
+	fig_mus.savefig(RUN_FOLDER+'mus.png')
+	fig_speeds.savefig(RUN_FOLDER+'speeds_online.png')
+	fig_track.savefig(RUN_FOLDER+'track_run.png')
 
-fig_mus.savefig(RUN_FOLDER+'mus.png')
-fig_speeds.savefig(RUN_FOLDER+'speeds_online.png')
-fig_track.savefig(RUN_FOLDER+'track_run.png')
 # Dist covered, laps completed, Lap 0 time, Lap 1 time, Lap 2 time, Lap 3 time, Lap 4 time, Mean deviation, Track boundary violation time 
 for i in range(len(lap_times)-1,0,-1) :
 	if lap_times[i] != 0. :

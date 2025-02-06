@@ -8,8 +8,8 @@ __email__ = 'achinj@seas.upenn.edu'
 import os
 import sys
 import numpy as np
-from bayes_race.tracks import Track
-from bayes_race.utils import Spline2D
+from apacrace.tracks import Track
+from apacrace.utils import Spline2D
 import matplotlib.pyplot as plt
 
 
