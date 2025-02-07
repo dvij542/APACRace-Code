@@ -65,7 +65,7 @@ VEHICLE_MODEL = 'Kinematic'
 lambda_ = 10.
 lambda_2 = 3.
 ALPHA = 1.
-RENDER = False
+RENDER = True
 torch.manual_seed(3)
 random.seed(0)
 np.random.seed(0)

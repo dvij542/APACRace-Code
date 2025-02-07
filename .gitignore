@@ -1,5 +1,5 @@
-proj*.zip
-proj*
+# proj*.zip
+# proj*
 *.gif
 *__pycache__*
 engine-ws*
