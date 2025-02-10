@@ -12,11 +12,12 @@ import _pickle as pickle
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from bayes_race.params import ORCA
-from bayes_race.models import Dynamic
-from bayes_race.tracks import ETHZ
-from bayes_race.mpc.planner import ConstantSpeed
-from bayes_race.mpc.nmpc import setupNLP
+from apacrace.params import ORCA
+from apacrace.models import Dynamic
+from apacrace.tracks import ETHZ
+from apacrace.mpc.planner import ConstantSpeed
+from apacrace.mpc.nmpc import setupNLP
+
 import matplotlib.pylab as pylab
 params = {'legend.fontsize': 'x-large',
         #   'figure.figsize': (15, 5),
@@ -157,7 +158,7 @@ for idt in range(n_steps-horizon):
 	start = tm.time()
 	nlp = setupNLP(horizon, Ts, COST_Q, COST_P, COST_R, params, model, track, track_cons=TRACK_CONS)
 	umpc, fval, xmpc = nlp.solve(x0=x0, xref=xref[:2,:], uprev=uprev)
-	# print(xmpc)
+	print(umpc)
 	end = tm.time()
 	inputs[:,idt] = umpc[:,0]
 	print("iter: {}, cost: {:.5f}, time: {:.2f}".format(idt, fval, end-start))

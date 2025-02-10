@@ -12,12 +12,12 @@ import _pickle as pickle
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from bayes_race.params import ORCA
-from bayes_race.models import Dynamic, Kinematic6
-from bayes_race.gp.utils import loadGPModel, loadGPModelVars
-from bayes_race.tracks import ETHZ
-from bayes_race.mpc.planner import ConstantSpeed
-from bayes_race.mpc.gpmpc import setupNLP
+from apacrace.params import ORCA
+from apacrace.models import Dynamic, Kinematic6
+from apacrace.gp.utils import loadGPModel, loadGPModelVars
+from apacrace.tracks import ETHZ
+from apacrace.mpc.planner import ConstantSpeed
+from apacrace.mpc.gpmpc import setupNLP
 from sklearn.gaussian_process.kernels import RBF, ConstantKernel
 from sklearn.preprocessing import StandardScaler
 from sklearn.gaussian_process import GaussianProcessRegressor

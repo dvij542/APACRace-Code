@@ -51,7 +51,7 @@ class Dynamic(Model):
 			self.approx = True
 		print(self.approx)
 		self.input_acc = input_acc
-		self.carla = True
+		self.carla = False
 		self.n_states = 6
 		self.n_inputs = 2
 		Model.__init__(self)
@@ -147,7 +147,7 @@ class Dynamic(Model):
 		vy = x[4]
 		omega = x[5]
 		
-		vmin = 0.2
+		vmin = 0.05
 		vy = cs.if_else(vx<vmin, 0, vy)
 		omega = cs.if_else(vx<vmin, 0, omega)
 		steer = cs.if_else(vx<vmin, 0, steer)

@@ -8,7 +8,7 @@ __email__ = 'achinj@seas.upenn.edu'
 import numpy as np
 import casadi as cs
 
-from bayes_race.mpc.constraints import Boundary
+from apacrace.mpc.constraints import Boundary
 
 
 class setupNLP:
@@ -122,7 +122,7 @@ class setupNLP:
 		name = 'nmpc'
 		self.problem = cs.nlpsol(name, 'ipopt', nlp, options)
 
-	def solve(self, x0, xref, uprev, pitch, roll):
+	def solve(self, x0, xref, uprev, pitch=0., roll=0.):
 		print("Current pitch : ", pitch)
 		print("Current roll : ", roll)
 		n_states = self.model.n_states

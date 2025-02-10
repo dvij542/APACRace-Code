@@ -63,5 +63,5 @@ def ConstantSpeed(x0, v0, track, N, Ts, projidx, scale=1., curr_mu = 1.):
 		if idh==1 :
 			vr = v*scale
 			# print(v,va,vb)
-
+	print(xref)
 	return xref, projidx, vr
