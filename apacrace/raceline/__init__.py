@@ -1,2 +1,2 @@
-from bayes_race.raceline.minimize_time import calcMinimumTime, calcMinimumTimeSpeed, calcInputs, calcMinimumTimeSpeedInputs
-from bayes_race.raceline.trajectory import randomTrajectory
+from apacrace.raceline.minimize_time import calcMinimumTime, calcMinimumTimeSpeed, calcInputs, calcMinimumTimeSpeedInputs
+from apacrace.raceline.trajectory import randomTrajectory

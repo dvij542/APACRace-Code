@@ -15,9 +15,9 @@ import cvxpy as cv
 from scipy.integrate import ode, odeint
 import matplotlib.pyplot as plt
 
-from bayes_race.utils import odeintRK6
-from bayes_race.params import ORCA, F110
-from bayes_race.tracks import ETHZ, ETHZMobil, UCB
+from apacrace.utils import odeintRK6
+from apacrace.params import ORCA, F110
+from apacrace.tracks import ETHZ, ETHZMobil, UCB
 import math
 
 def define_params(mass, lf, lr):
@@ -263,12 +263,14 @@ def optimize(path, params, plot_results, print_updates):
         cost += 2*dtheta*cv.inv_pos(cv.power(B[j],0.5) + cv.power(B[j+1],0.5))
 
         R, M, C, d = dynamics_cvx(S_prime[:,j], S_dprime[:,j], params)
-        constr += [R*U[:,j] == M*A[j] + C*((B[j] + B[j+1])/2) + d]
+        # print(R,U,M,A[j])
+        # print(C)
+        constr += [R@U[:,j] == M*A[j] + C*((B[j] + B[j+1])/2) + d]
         constr += [B[j] >= 0]
+        # exit(0)
         constr += [cv.norm(U[:,j],2) <= params['Fmax']]
         constr += [U[0,j] <= params['Flongmax']]
         constr += [B[j+1] - B[j] == 2*A[j]*dtheta]
-        
     problem = cv.Problem(cv.Minimize(cost), constr)
     solution = problem.solve()
 

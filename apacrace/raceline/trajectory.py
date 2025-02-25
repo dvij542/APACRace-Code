@@ -8,10 +8,10 @@ __email__ = 'achinj@seas.upenn.edu'
 import numpy as np
 import matplotlib.pyplot as plt
 
-from bayes_race.utils import Spline2D
-from bayes_race.tracks import MAP2
-from bayes_race.params import ORCA, F110
-from bayes_race.raceline import calcMinimumTime
+from apacrace.utils import Spline2D
+from apacrace.tracks import MAP2
+from apacrace.params import ORCA, F110
+from apacrace.raceline import calcMinimumTime
 
 
 class randomTrajectory:

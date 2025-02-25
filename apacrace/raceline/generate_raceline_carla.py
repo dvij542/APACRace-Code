@@ -18,10 +18,10 @@ from botorch import fit_gpytorch_model
 from botorch.acquisition.monte_carlo import qExpectedImprovement, qNoisyExpectedImprovement
 from botorch.sampling.samplers import SobolQMCNormalSampler
 
-from bayes_race.tracks import CarlaRace
-from bayes_race.params import ORCA, CarlaParams
-from bayes_race.raceline import randomTrajectory
-from bayes_race.raceline import calcMinimumTime
+from apacrace.tracks import CarlaRace
+from apacrace.params import ORCA, CarlaParams
+from apacrace.raceline import randomTrajectory
+from apacrace.raceline import calcMinimumTime
 
 from matplotlib import pyplot as plt
 
@@ -44,7 +44,7 @@ N_TRIALS = 3                # number of times bayesopt is run
 N_BATCH = 50               # new observations after initialization
 MC_SAMPLES = 64             # monte carlo samples
 N_INITIAL_SAMPLES = 10      # samples to initialize GP
-PLOT_RESULTS = False        # whether to plot results
+PLOT_RESULTS = True        # whether to plot results
 SAVE_RESULTS = True         # whether to save results
 N_WAYPOINTS = 100           # resampled waypoints
 SCALE = 0.95                # shrinking factor for track width
@@ -93,12 +93,14 @@ def evaluate_y(x_eval, mean_y=None, std_y=None):
             last_index=NODES[LASTIDX],
             theta=theta,
             )
+        
         x, y = rand_traj.fit_cubic_splines(
             wx=wx, 
             wy=wy, 
             n_samples=N_WAYPOINTS,
             )
         y_eval[ids] = -calcMinimumTime(x, y, **params)       # we want to max negative lap times
+        # exit(0)
 
     if mean_y and std_y:
         y_eval = normalize(y_eval, mean_y, std_y)
@@ -113,13 +115,14 @@ def generate_initial_data(n_samples=10):
     """
     train_x = np.zeros([n_samples, n_waypoints])
     train_y_ = np.zeros([n_samples, 1])
-
+    
     for ids in range(n_samples):
         width_random = rand_traj.sample_nodes(scale=SCALE)
         t_random = evaluate_y(width_random)
+        # exit(0)
         train_x[ids,:] = width_random
         train_y_[ids,:] = t_random
-
+    # exit(0)
     mean_y, std_y = train_y_.mean(), train_y_.std()
     train_y = normalize(train_y_, mean_y, std_y)
     train_x = torch.tensor(train_x, device=device, dtype=dtype)
@@ -176,7 +179,7 @@ def sample_random_observations(mean_y, std_y):
 qmc_sampler = SobolQMCNormalSampler(num_samples=MC_SAMPLES)
 
 def optimize():
-
+    print("Hahahahahahaha")
     verbose = True
     
     best_observed_all_ei, best_observed_all_nei, best_random_all = [], [], []
@@ -192,10 +195,15 @@ def optimize():
         
         # generate initial training data and initialize model
         print('\nGenerating {} random samples'.format(N_INITIAL_SAMPLES))
+        print("a")
+        # exit(0)
         train_x_ei, train_y_ei, best_y_ei, mean_y, std_y = generate_initial_data(n_samples=N_INITIAL_SAMPLES)
+        # exit(0)
+        print("b")
         denormalize = lambda x: -(x*std_y + mean_y)
         mll_ei, model_ei = initialize_model(train_x_ei, train_y_ei)
-        
+        print("c")
+        # exit(0)
         train_x_nei, train_y_nei, best_y_nei = train_x_ei, train_y_ei, best_y_ei
         mll_nei, model_nei = initialize_model(train_x_nei, train_y_nei)
 
