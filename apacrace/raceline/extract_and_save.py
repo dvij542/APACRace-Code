@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import random
 
-saved_raceline = np.loadtxt('/home/dvij/APACRace-Code/apacrace/global_racetrajectory_optimization/outputs/traj_race_cl.csv',delimiter=';')
+saved_raceline = np.loadtxt('../global_racetrajectory_optimization/outputs/traj_race_cl.csv',delimiter=';')
 # print(saved_raceline.shape)
 x = saved_raceline[:,1]
 y = saved_raceline[:,2]
