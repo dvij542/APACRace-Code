@@ -711,23 +711,28 @@ def game_loop(args):
             vec_near = nearest_point-curr_point
             print("Lateral error : ", math.sqrt(vec_near[0]**2+vec_near[1]**2))
             alpha_r = torch.tensor(np.arange(-.3,.3,0.001)).unsqueeze(1)
-            Fry_pred = (alpha_r>0.)*model_.Ry(alpha_r)[:,0].detach().numpy() - (alpha_r<=0.)*model_.Ry(-alpha_r)[:,0].detach().numpy()
+            Fry_pred = (alpha_r[:,0]>0.)*model_.Ry(alpha_r)[:,0].detach().numpy() - (alpha_r[:,0]<=0.)*model_.Ry(-alpha_r)[:,0].detach().numpy()
             alpha_r1 = torch.tensor(np.arange(-.18,.18,0.001)).unsqueeze(1)
-            Fry_pred1 = (alpha_r1>0.)*model_.Ry(alpha_r1)[:,0].detach().numpy() - (alpha_r1<=0.)*model_.Ry(-alpha_r1)[:,0].detach().numpy()
+            Fry_pred1 = (alpha_r1[:,0]>0.)*model_.Ry(alpha_r1)[:,0].detach().numpy() - (alpha_r1[:,0]<=0.)*model_.Ry(-alpha_r1)[:,0].detach().numpy()
+            Fry_pred = np.array(Fry_pred)
+            Fry_pred1 = np.array(Fry_pred1)
             if itr < 2000 :
                 Drs_pred.append(mu_init)
             else :
                 Drs_pred.append(np.max(Fry_pred1)/9.8)
             # Fry_true = params['Dr']*torch.sin(params['Cr']*torch.atan(params['Br']*alpha_r))
             alpha_f = torch.tensor(np.arange(-.3,.3,0.001)).unsqueeze(1)
-            Ffy_pred = (alpha_f>0.)*model_.Fy(alpha_f)[:,0].detach().numpy() - (alpha_f<=0.)*model_.Fy(-alpha_f)[:,0].detach().numpy()
+            Ffy_pred = (alpha_f[:,0]>0.)*model_.Fy(alpha_f)[:,0].detach().numpy() - (alpha_f[:,0]<=0.)*model_.Fy(-alpha_f)[:,0].detach().numpy()
             alpha_f1 = torch.tensor(np.arange(-.18,.18,0.001)).unsqueeze(1)
-            Ffy_pred1 = (alpha_f1>0.)*model_.Fy(alpha_f1)[:,0].detach().numpy() - (alpha_f1<=0.)*model_.Fy(-alpha_f1)[:,0].detach().numpy()
+            Ffy_pred1 = (alpha_f1[:,0]>0.)*model_.Fy(alpha_f1)[:,0].detach().numpy() - (alpha_f1[:,0]<=0.)*model_.Fy(-alpha_f1)[:,0].detach().numpy()
             # Ffy_true = params['Df']*torch.sin(params['Cf']*torch.atan(params['Bf']*alpha_f))
+            Ffy_pred = np.array(Ffy_pred)
+            Ffy_pred1 = np.array(Ffy_pred1)
             if itr < 2000 :
                 Dfs_pred.append(mu_init)
             else :          
                 Dfs_pred.append(np.max(Ffy_pred1)/9.8)
+            # print(np.max(np.array(Ffy_pred1)), np.max(np.array(Fry_pred1)))
             mu_pred = min(1.,(np.max(Ffy_pred1)/9.8 + np.max(Fry_pred1)/9.8)/2.)
             LnDf_pred.set_xdata(time[:itr])
             LnDf_pred.set_ydata(Dfs_pred[:itr])

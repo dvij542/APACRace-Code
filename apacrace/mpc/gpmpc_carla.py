@@ -242,8 +242,8 @@ class setupNLP:
 		self.problem = cs.nlpsol(self.name, 'ipopt', self.nlp, self.options)
 
 	def solve(self, x0, xref, uprev, use_kinematic,models):
-		print(x0)
-		print(xref)
+		# print(x0)
+		# print(xref)
 		n_states = self.model.n_states
 		n_inputs = self.model.n_inputs
 		horizon = self.horizon
