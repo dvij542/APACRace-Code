@@ -23,7 +23,7 @@ class Dynamic(Model):
 
 	def __init__(self, lf, lr, mass, Iz, Cf, Cr, 
 				 Bf=None, Br=None, Df=None, Dr=None,
-				 Cm1=None, Cm2=None, Cr0=None, Cr2=None, 
+				 Cm1=None, Cm2=None, Cm1_brake=None, Cm2_brake=None, Cr0=None, Cr2=None, 
 				 input_acc=False, carla=True, **kwargs):
 		"""	specify model params here
 		"""
@@ -46,12 +46,15 @@ class Dynamic(Model):
 		self.Cr0 = Cr0
 		self.Cr2 = Cr2
 
+		self.Cm1_brake = Cm1_brake
+		self.Cm2_brake = Cm2_brake
+
 		self.approx = False
 		if Bf is None or Br is None or Df is None or Dr is None:
 			self.approx = True
 		print(self.approx)
 		self.input_acc = input_acc
-		self.carla = False
+		self.carla = carla
 		self.n_states = 6
 		self.n_inputs = 2
 		Model.__init__(self)

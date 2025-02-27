@@ -51,16 +51,16 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 # from carla import Vector3d
-from bayes_race.params import ORCA, CarlaParams
-from bayes_race.models import Dynamic, Kinematic6
-from bayes_race.tracks import ETHZ, CarlaRace
-from bayes_race.mpc.planner import ConstantSpeedCarla
-from bayes_race.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel, loadTorchModel, loadTorchModelEq, loadTorchModelImplicit
-from bayes_race.mpc.gpmpc_carla import setupNLP
+from apacrace.params import ORCA, CarlaParams
+from apacrace.models import Dynamic, Kinematic6
+from apacrace.tracks import ETHZ, CarlaRace
+from apacrace.mpc.planner import ConstantSpeedCarla
+from apacrace.gp.utils import loadGPModel, loadGPModelVars, loadMLPModel, loadTorchModel, loadTorchModelEq, loadTorchModelImplicit
+from apacrace.mpc.gpmpc_carla import setupNLP
 import torch
 import random
 import os
-from bayes_race.utils import Projection, Spline, Spline2D
+from apacrace.utils import Projection, Spline, Spline2D
 import matplotlib.pylab as pylab
 params = {'legend.fontsize': 'x-large',
         #   'figure.figsize': (15, 5),
@@ -73,7 +73,6 @@ pylab.rcParams.update(params)
 # ==============================================================================
 # -- Imports from carla --------------------------------------------------------
 # ==============================================================================
-
 
 import carla
 
@@ -712,18 +711,18 @@ def game_loop(args):
             vec_near = nearest_point-curr_point
             print("Lateral error : ", math.sqrt(vec_near[0]**2+vec_near[1]**2))
             alpha_r = torch.tensor(np.arange(-.3,.3,0.001)).unsqueeze(1)
-            Fry_pred = model_.Ry(alpha_r)[:,0].detach().numpy()
-            alpha_r1 = torch.tensor(np.arange(-.22,.22,0.001)).unsqueeze(1)
-            Fry_pred1 = model_.Ry(alpha_r1)[:,0].detach().numpy()
+            Fry_pred = (alpha_r>0.)*model_.Ry(alpha_r)[:,0].detach().numpy() - (alpha_r<=0.)*model_.Ry(-alpha_r)[:,0].detach().numpy()
+            alpha_r1 = torch.tensor(np.arange(-.18,.18,0.001)).unsqueeze(1)
+            Fry_pred1 = (alpha_r1>0.)*model_.Ry(alpha_r1)[:,0].detach().numpy() - (alpha_r1<=0.)*model_.Ry(-alpha_r1)[:,0].detach().numpy()
             if itr < 2000 :
                 Drs_pred.append(mu_init)
             else :
                 Drs_pred.append(np.max(Fry_pred1)/9.8)
             # Fry_true = params['Dr']*torch.sin(params['Cr']*torch.atan(params['Br']*alpha_r))
             alpha_f = torch.tensor(np.arange(-.3,.3,0.001)).unsqueeze(1)
-            Ffy_pred = model_.Fy(alpha_f)[:,0].detach().numpy()
-            alpha_f1 = torch.tensor(np.arange(-.22,.22,0.001)).unsqueeze(1)
-            Ffy_pred1 = model_.Fy(alpha_f1)[:,0].detach().numpy()
+            Ffy_pred = (alpha_f>0.)*model_.Fy(alpha_f)[:,0].detach().numpy() - (alpha_f<=0.)*model_.Fy(-alpha_f)[:,0].detach().numpy()
+            alpha_f1 = torch.tensor(np.arange(-.18,.18,0.001)).unsqueeze(1)
+            Ffy_pred1 = (alpha_f1>0.)*model_.Fy(alpha_f1)[:,0].detach().numpy() - (alpha_f1<=0.)*model_.Fy(-alpha_f1)[:,0].detach().numpy()
             # Ffy_true = params['Df']*torch.sin(params['Cf']*torch.atan(params['Bf']*alpha_f))
             if itr < 2000 :
                 Dfs_pred.append(mu_init)
@@ -783,8 +782,8 @@ def game_loop(args):
             # x_ = vec[0]*math.cos(yaw) + vec[1]*math.sin(yaw)
             # y_ = vec[1]*math.cos(yaw) - vec[0]*math.sin(yaw)
             # print(x_,y_)
-            if controller.toggle_update_plots(client, world, clock, args.sync) :
-                UPDATE_PLOTS = not UPDATE_PLOTS
+            # if controller.toggle_update_plots(client, world, clock, args.sync) :
+            #     UPDATE_PLOTS = not UPDATE_PLOTS
 
             if MANUAL_CONTROL :
                 if controller.parse_events(client, world, clock, args.sync):
@@ -808,7 +807,7 @@ def game_loop(args):
                 world.player.add_force(extra_force)
                 world.player.add_torque(extra_torque)
                 world.player.apply_control(_control)
-                print("Control applied")
+                print("Control applied", _control.steer, _control.throttle, _control.brake)
             
             # time : 0, pos x : 1, pos y : 2, pos z : 3, roll : 4, 
             # pitch : 5, yaw : 6, velx : 7, vely : 8, w : 9, 
@@ -826,9 +825,9 @@ def game_loop(args):
             world.tick(clock)
             world.render(display)
             pygame.display.flip()
-            if itr%4==0 :
-                mus_fig.savefig('Video_mus/frame'+str(itr//4)+'.png')
-                pygame.image.save(display, "_out_without/frame"+str(itr//4)+'.png')
+            # if itr%4==0 :
+            #     mus_fig.savefig('Video_mus/frame'+str(itr//4)+'.png')
+            #     pygame.image.save(display, "_out_without/frame"+str(itr//4)+'.png')
         
 
         np.savetxt('run'+str(RUN_NO)+'_data.csv',np.array(run_data),delimiter=',')

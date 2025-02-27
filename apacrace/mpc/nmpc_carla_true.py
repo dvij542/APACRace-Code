@@ -50,11 +50,11 @@ import _pickle as pickle
 import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
-from bayes_race.params import ORCA, CarlaParams
-from bayes_race.models import Dynamic
-from bayes_race.tracks import ETHZ, CarlaRace
-from bayes_race.mpc.planner import ConstantSpeed
-from bayes_race.mpc.nmpc import setupNLP
+from apacrace.params import ORCA, CarlaParams
+from apacrace.models import Dynamic
+from apacrace.tracks import ETHZ, CarlaRace
+from apacrace.mpc.planner import ConstantSpeed, ConstantSpeedCarla
+from apacrace.mpc.nmpc import setupNLP
 
 # ==============================================================================
 # -- Imports from carla --------------------------------------------------------
@@ -307,7 +307,7 @@ def game_loop(args):
             x0[3] = max(5,x0[3])
             # planner based on BayesOpt
             # print("State : ", x0)
-            xref, projidx, v_ref = ConstantSpeed(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
+            xref, projidx, v_ref = ConstantSpeedCarla(x0=x0[:2], v0=x0[3], track=track, N=horizon, Ts=Ts, projidx=projidx)
             v_refs.append(v_ref)
             if projidx > track.raceline.shape[1]-5 :
                 projidx = 0

@@ -128,7 +128,7 @@ class setupNLP:
 					Fry = cs.if_else(alpha_r>0.,Fry,-Fry_)
 					
 					Frx_ins = [vx**2] + Rx_inps
-					Frx = cs.if_else(pwm>0.,params['Cm1'],params['Cm2'])*pwm + Rx_model(*Frx_ins)[0]
+					Frx = cs.if_else(pwm>0.,params['Cm1'],params['Cm1_brake'])*pwm + Rx_model(*Frx_ins)[0]
 					vx_dot = (Frx-Ffy*cs.sin(delta)+params['mass']*vy*w)/params['mass']
 					vy_dot = (Fry+Ffy*cs.cos(delta)-params['mass']*vx*w)/params['mass']
 					w_dot = (Ffy*params['lf']*cs.cos(delta)-Fry*params['lr'])/params['Iz']
@@ -242,7 +242,8 @@ class setupNLP:
 		self.problem = cs.nlpsol(self.name, 'ipopt', self.nlp, self.options)
 
 	def solve(self, x0, xref, uprev, use_kinematic,models):
-		
+		print(x0)
+		print(xref)
 		n_states = self.model.n_states
 		n_inputs = self.model.n_inputs
 		horizon = self.horizon
